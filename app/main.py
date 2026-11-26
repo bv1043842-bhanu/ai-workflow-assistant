@@ -58,12 +58,16 @@ def create_app(database_path: str | Path = DEFAULT_DATABASE_PATH) -> FastAPI:
         title: str | None = None,
         location: str | None = None,
         event_date: date | None = Query(default=None, alias="date"),
+        skip: int = Query(default=0, ge=0),
+        limit: int = Query(default=10, ge=1, le=100),
     ):
         events = list_events_from_database(
             database_path,
             title=title,
             location=location,
             event_date=event_date,
+            skip=skip,
+            limit=limit,
         )
         return [Event(**event) for event in events]
 

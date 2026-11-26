@@ -53,10 +53,12 @@ def list_events(
     title: str | None = None,
     location: str | None = None,
     event_date: date | None = None,
+    skip: int = 0,
+    limit: int = 10,
 ) -> list[dict[str, Any]]:
-    """Return events matching the optional filters in ascending ID order."""
+    """Return a page of matching events in ascending ID order."""
     conditions: list[str] = []
-    parameters: list[str] = []
+    parameters: list[str | int] = []
 
     if title is not None:
         conditions.append("LOWER(title) LIKE LOWER(?)")
@@ -79,6 +81,8 @@ def list_events(
         query_parts.append("WHERE " + " AND ".join(conditions))
 
     query_parts.append("ORDER BY id")
+    query_parts.append("LIMIT ? OFFSET ?")
+    parameters.extend([limit, skip])
     query = "\n".join(query_parts)
 
     with get_connection(database_path) as connection:

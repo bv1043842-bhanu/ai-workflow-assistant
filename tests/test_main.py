@@ -76,6 +76,108 @@ def test_list_events_returns_created_events(client):
     assert response.json() == [{"id": 1, **event_data}]
 
 
+def _create_pagination_test_events(client, count=12):
+    events = [
+        {
+            "title": f"Event {index}",
+            "description": f"Description {index}",
+            "date": "2026-04-12" if index % 2 else "2026-04-13",
+            "location": "Main Quad" if index % 2 else "Student Center",
+        }
+        for index in range(1, count + 1)
+    ]
+
+    for event in events:
+        client.post("/events", json=event)
+
+    return events
+
+
+def test_list_events_uses_default_pagination_and_id_order(client):
+    events = _create_pagination_test_events(client)
+
+    response = client.get("/events")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": index, **event} for index, event in enumerate(events[:10], start=1)
+    ]
+
+
+def test_list_events_applies_skip_and_limit_in_id_order(client):
+    events = _create_pagination_test_events(client)
+
+    response = client.get("/events", params={"skip": 3, "limit": 4})
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": index, **event}
+        for index, event in enumerate(events[3:7], start=4)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("params", "expected_count"),
+    [
+        ({"skip": 0, "limit": 1}, 1),
+        ({"skip": 0, "limit": 100}, 12),
+    ],
+)
+def test_list_events_accepts_pagination_boundaries(client, params, expected_count):
+    _create_pagination_test_events(client)
+
+    response = client.get("/events", params=params)
+
+    assert response.status_code == 200
+    assert len(response.json()) == expected_count
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"skip": -1},
+        {"limit": 0},
+        {"limit": 101},
+        {"skip": "not-an-integer"},
+        {"limit": "not-an-integer"},
+    ],
+)
+def test_list_events_rejects_invalid_pagination_values(client, params):
+    response = client.get("/events", params=params)
+
+    assert response.status_code == 422
+
+
+def test_list_events_returns_empty_list_when_skip_exceeds_available_events(client):
+    _create_pagination_test_events(client, count=2)
+
+    response = client.get("/events", params={"skip": 2})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_events_combines_pagination_with_filters(client):
+    events = _create_pagination_test_events(client)
+
+    response = client.get(
+        "/events",
+        params={
+            "title": "event",
+            "location": "main quad",
+            "date": "2026-04-12",
+            "skip": 1,
+            "limit": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": 3, **events[2]},
+        {"id": 5, **events[4]},
+    ]
+
+
 def _create_filter_test_events(client):
     events = [
         {
