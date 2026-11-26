@@ -48,16 +48,41 @@ def create_event(
     }
 
 
-def list_events(database_path: str | Path) -> list[dict[str, Any]]:
-    """Return all events in ascending ID order."""
+def list_events(
+    database_path: str | Path,
+    title: str | None = None,
+    location: str | None = None,
+    event_date: date | None = None,
+) -> list[dict[str, Any]]:
+    """Return events matching the optional filters in ascending ID order."""
+    conditions: list[str] = []
+    parameters: list[str] = []
+
+    if title is not None:
+        conditions.append("LOWER(title) LIKE LOWER(?)")
+        parameters.append(f"%{title}%")
+
+    if location is not None:
+        conditions.append("LOWER(location) LIKE LOWER(?)")
+        parameters.append(f"%{location}%")
+
+    if event_date is not None:
+        conditions.append("event_date = ?")
+        parameters.append(event_date.isoformat())
+
+    query_parts = [
+        "SELECT id, title, description, event_date, location",
+        "FROM events",
+    ]
+
+    if conditions:
+        query_parts.append("WHERE " + " AND ".join(conditions))
+
+    query_parts.append("ORDER BY id")
+    query = "\n".join(query_parts)
+
     with get_connection(database_path) as connection:
-        rows = connection.execute(
-            """
-            SELECT id, title, description, event_date, location
-            FROM events
-            ORDER BY id
-            """
-        ).fetchall()
+        rows = connection.execute(query, parameters).fetchall()
 
     return [_row_to_event(row) for row in rows]
 

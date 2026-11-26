@@ -2,7 +2,7 @@ from datetime import date
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Query, status
 from pydantic import BaseModel, field_validator
 
 from app.database import DEFAULT_DATABASE_PATH, initialize_database
@@ -54,8 +54,17 @@ def create_app(database_path: str | Path = DEFAULT_DATABASE_PATH) -> FastAPI:
         return Event(**created_event)
 
     @app.get("/events", response_model=list[Event])
-    def list_events():
-        events = list_events_from_database(database_path)
+    def list_events(
+        title: str | None = None,
+        location: str | None = None,
+        event_date: date | None = Query(default=None, alias="date"),
+    ):
+        events = list_events_from_database(
+            database_path,
+            title=title,
+            location=location,
+            event_date=event_date,
+        )
         return [Event(**event) for event in events]
 
     @app.get("/events/{event_id}", response_model=Event)

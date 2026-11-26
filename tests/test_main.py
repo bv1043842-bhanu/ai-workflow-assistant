@@ -76,6 +76,98 @@ def test_list_events_returns_created_events(client):
     assert response.json() == [{"id": 1, **event_data}]
 
 
+def _create_filter_test_events(client):
+    events = [
+        {
+            "title": "Spring Festival",
+            "description": "An outdoor campus festival.",
+            "date": "2026-04-12",
+            "location": "Main Quad",
+        },
+        {
+            "title": "Spring Career Fair",
+            "description": "Meet employers on campus.",
+            "date": "2026-04-12",
+            "location": "Student Center",
+        },
+        {
+            "title": "Winter Festival",
+            "description": "A winter campus celebration.",
+            "date": "2026-12-01",
+            "location": "Main Quad",
+        },
+    ]
+
+    for event in events:
+        client.post("/events", json=event)
+
+    return events
+
+
+def test_list_events_filters_by_partial_case_insensitive_title(client):
+    events = _create_filter_test_events(client)
+
+    response = client.get("/events", params={"title": "RING FES"})
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": 1, **events[0]}]
+
+
+def test_list_events_filters_by_partial_case_insensitive_location(client):
+    events = _create_filter_test_events(client)
+
+    response = client.get("/events", params={"location": "QUA"})
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": 1, **events[0]},
+        {"id": 3, **events[2]},
+    ]
+
+
+def test_list_events_filters_by_exact_date(client):
+    events = _create_filter_test_events(client)
+
+    response = client.get("/events", params={"date": "2026-04-12"})
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": 1, **events[0]},
+        {"id": 2, **events[1]},
+    ]
+
+
+def test_list_events_combines_filters_with_and_behavior(client):
+    events = _create_filter_test_events(client)
+
+    response = client.get(
+        "/events",
+        params={
+            "title": "festival",
+            "location": "quad",
+            "date": "2026-04-12",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": 1, **events[0]}]
+
+
+def test_list_events_returns_empty_list_when_no_events_match(client):
+    _create_filter_test_events(client)
+
+    response = client.get("/events", params={"title": "hackathon"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_events_rejects_invalid_date_filter(client):
+    response = client.get("/events", params={"date": "not-a-date"})
+
+    assert response.status_code == 422
+
+
 def test_get_event_returns_existing_event(client):
     event_data = {
         "title": "Guest Lecture",
