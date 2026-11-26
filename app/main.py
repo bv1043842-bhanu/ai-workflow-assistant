@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -43,3 +43,15 @@ def create_event(event: EventCreate):
 @app.get("/events", response_model=list[Event])
 def list_events():
     return events
+
+
+@app.get("/events/{event_id}", response_model=Event)
+def get_event(event_id: int):
+    for event in events:
+        if event.id == event_id:
+            return event
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Event with ID {event_id} not found",
+    )

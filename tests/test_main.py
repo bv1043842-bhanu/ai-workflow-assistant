@@ -50,3 +50,25 @@ def test_list_events_returns_created_events():
 
     assert response.status_code == 200
     assert response.json() == [{"id": 1, **event_data}]
+
+
+def test_get_event_returns_existing_event():
+    event_data = {
+        "title": "Guest Lecture",
+        "description": "A lecture from an industry expert.",
+        "date": "2026-06-10",
+        "location": "Engineering Hall",
+    }
+    client.post("/events", json=event_data)
+
+    response = client.get("/events/1")
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 1, **event_data}
+
+
+def test_get_event_returns_not_found_for_nonexistent_event():
+    response = client.get("/events/999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Event with ID 999 not found"}
