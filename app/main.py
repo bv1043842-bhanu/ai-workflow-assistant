@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.database import DEFAULT_DATABASE_PATH, initialize_database
 from app.event_repository import (
@@ -20,6 +20,13 @@ class EventCreate(BaseModel):
     description: str
     date: date
     location: str
+
+    @field_validator("title", "description", "location")
+    @classmethod
+    def text_fields_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("must not be empty or whitespace only")
+        return value
 
 
 class Event(EventCreate):

@@ -4,6 +4,16 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 
 
+INVALID_TEXT_FIELD_CASES = [
+    ("title", ""),
+    ("description", ""),
+    ("location", ""),
+    ("title", "   "),
+    ("description", "   "),
+    ("location", "   "),
+]
+
+
 @pytest.fixture
 def client(tmp_path):
     test_app = create_app(tmp_path / "events_test.db")
@@ -34,6 +44,21 @@ def test_create_event_returns_created_event(client):
 
     assert response.status_code == 201
     assert response.json() == {"id": 1, **event_data}
+
+
+@pytest.mark.parametrize(("field", "invalid_value"), INVALID_TEXT_FIELD_CASES)
+def test_create_event_rejects_blank_text_fields(client, field, invalid_value):
+    event_data = {
+        "title": "Spring Festival",
+        "description": "An outdoor campus festival.",
+        "date": "2026-04-12",
+        "location": "Main Quad",
+    }
+    event_data[field] = invalid_value
+
+    response = client.post("/events", json=event_data)
+
+    assert response.status_code == 422
 
 
 def test_list_events_returns_created_events(client):
@@ -92,6 +117,28 @@ def test_update_event_returns_updated_event(client):
 
     assert response.status_code == 200
     assert response.json() == {"id": 1, **updated_event_data}
+
+
+@pytest.mark.parametrize(("field", "invalid_value"), INVALID_TEXT_FIELD_CASES)
+def test_update_event_rejects_blank_text_fields(client, field, invalid_value):
+    original_event_data = {
+        "title": "Guest Lecture",
+        "description": "A lecture from an industry expert.",
+        "date": "2026-06-10",
+        "location": "Engineering Hall",
+    }
+    updated_event_data = {
+        "title": "Alumni Panel",
+        "description": "Graduates share career advice.",
+        "date": "2026-07-15",
+        "location": "Auditorium",
+    }
+    client.post("/events", json=original_event_data)
+    updated_event_data[field] = invalid_value
+
+    response = client.put("/events/1", json=updated_event_data)
+
+    assert response.status_code == 422
 
 
 def test_update_event_returns_not_found_for_nonexistent_event(client):
