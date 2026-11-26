@@ -69,3 +69,16 @@ def update_event(event_id: int, event: EventCreate):
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Event with ID {event_id} not found",
     )
+
+
+@app.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event(event_id: int):
+    for index, event in enumerate(events):
+        if event.id == event_id:
+            del events[index]
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Event with ID {event_id} not found",
+    )

@@ -107,3 +107,29 @@ def test_update_event_returns_not_found_for_nonexistent_event():
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Event with ID 999 not found"}
+
+
+def test_delete_event_returns_no_content_and_removes_event():
+    event_data = {
+        "title": "Campus Concert",
+        "description": "An evening concert.",
+        "date": "2026-08-20",
+        "location": "Main Quad",
+    }
+    client.post("/events", json=event_data)
+
+    response = client.delete("/events/1")
+
+    assert response.status_code == 204
+    assert response.content == b""
+
+    get_response = client.get("/events/1")
+    assert get_response.status_code == 404
+    assert get_response.json() == {"detail": "Event with ID 1 not found"}
+
+
+def test_delete_event_returns_not_found_for_nonexistent_event():
+    response = client.delete("/events/999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Event with ID 999 not found"}
