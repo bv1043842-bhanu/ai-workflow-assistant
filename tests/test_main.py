@@ -72,3 +72,38 @@ def test_get_event_returns_not_found_for_nonexistent_event():
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Event with ID 999 not found"}
+
+
+def test_update_event_returns_updated_event():
+    original_event_data = {
+        "title": "Guest Lecture",
+        "description": "A lecture from an industry expert.",
+        "date": "2026-06-10",
+        "location": "Engineering Hall",
+    }
+    updated_event_data = {
+        "title": "Alumni Panel",
+        "description": "Graduates share career advice.",
+        "date": "2026-07-15",
+        "location": "Auditorium",
+    }
+    client.post("/events", json=original_event_data)
+
+    response = client.put("/events/1", json=updated_event_data)
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 1, **updated_event_data}
+
+
+def test_update_event_returns_not_found_for_nonexistent_event():
+    event_data = {
+        "title": "Alumni Panel",
+        "description": "Graduates share career advice.",
+        "date": "2026-07-15",
+        "location": "Auditorium",
+    }
+
+    response = client.put("/events/999", json=event_data)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Event with ID 999 not found"}

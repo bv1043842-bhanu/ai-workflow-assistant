@@ -55,3 +55,17 @@ def get_event(event_id: int):
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Event with ID {event_id} not found",
     )
+
+
+@app.put("/events/{event_id}", response_model=Event)
+def update_event(event_id: int, event: EventCreate):
+    for index, existing_event in enumerate(events):
+        if existing_event.id == event_id:
+            updated_event = Event(id=event_id, **event.model_dump())
+            events[index] = updated_event
+            return updated_event
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Event with ID {event_id} not found",
+    )
