@@ -1,8 +1,10 @@
+
 from datetime import date
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 from app.database import DEFAULT_DATABASE_PATH, initialize_database
@@ -41,6 +43,19 @@ def create_app(database_path: str | Path = DEFAULT_DATABASE_PATH) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
 
+    # Allow requests from local React development servers.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+        ],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
+
     @app.get("/health")
     def health_check():
         return {
@@ -48,9 +63,15 @@ def create_app(database_path: str | Path = DEFAULT_DATABASE_PATH) -> FastAPI:
             "message": "AI Workflow Assistant backend is running",
         }
 
-    @app.post("/events", response_model=Event, status_code=status.HTTP_201_CREATED)
+    @app.post(
+        "/events",
+        response_model=Event,
+        status_code=status.HTTP_201_CREATED,
+    )
     def create_event(event: EventCreate):
-        created_event = create_event_in_database(database_path, event.model_dump())
+        created_event = create_event_in_database(
+            database_path, event.model_dump()
+        )
         return Event(**created_event)
 
     @app.get("/events", response_model=list[Event])
@@ -97,7 +118,10 @@ def create_app(database_path: str | Path = DEFAULT_DATABASE_PATH) -> FastAPI:
 
         return Event(**updated_event)
 
-    @app.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+    @app.delete(
+        "/events/{event_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
     def delete_event(event_id: int):
         deleted = delete_event_in_database(database_path, event_id)
 
