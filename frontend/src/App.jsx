@@ -1,9 +1,29 @@
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 
 const API_URL = 'http://127.0.0.1:8000'
 const PAGE_SIZE = 10
+const MIN_EVENT_DATE = '2020-01-01'
+const MAX_EVENT_DATE = '2100-12-31'
+
+// Validate the event date
+function isValidEventDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+
+  if (value < MIN_EVENT_DATE || value > MAX_EVENT_DATE) {
+    return false
+  }
+
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() + 1 === month &&
+    parsed.getUTCDate() === day
+  )
+}
 
 const EMPTY_FORM = {
   title: '',
@@ -31,11 +51,23 @@ function App() {
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS)
   const [page, setPage] = useState(0)
 
-  // Fetch events with search, filters and pagination
-  async function fetchEvents() {
-    setLoading(true)
+  // AI assistant state
+  const [question, setQuestion] = useState('')
 
-    try {
+  const [chatMessages, setChatMessages] = useState([
+    {
+      role: 'assistant',
+      content:
+        'Hello! I am your CampusConnect AI assistant. Ask me about campus events, dates, locations, and descriptions.',
+    },
+  ])
+
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState('')
+
+  // Fetch campus events
+  const fetchEvents = useCallback(
+    async (pageToLoad = page) => {
       const params = new URLSearchParams()
 
       if (appliedFilters.title.trim()) {
@@ -50,7 +82,7 @@ function App() {
         params.set('date', appliedFilters.date)
       }
 
-      params.set('skip', String(page * PAGE_SIZE))
+      params.set('skip', String(pageToLoad * PAGE_SIZE))
       params.set('limit', String(PAGE_SIZE))
 
       const response = await fetch(
@@ -61,19 +93,40 @@ function App() {
         throw new Error('Failed to fetch events')
       }
 
-      const data = await response.json()
-      setEvents(data)
-      setError('')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+      return response.json()
+    },
+    [appliedFilters, page]
+  )
 
+  // Load events when filters or page changes
   useEffect(() => {
-    fetchEvents()
-  }, [appliedFilters, page])
+    let ignore = false
+
+    async function loadEvents() {
+      try {
+        const data = await fetchEvents()
+
+        if (!ignore) {
+          setEvents(data)
+          setError('')
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(err.message)
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadEvents()
+
+    return () => {
+      ignore = true
+    }
+  }, [fetchEvents])
 
   // Handle event form changes
   function handleChange(event) {
@@ -89,9 +142,29 @@ function App() {
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
-    setSubmitting(true)
 
     const isEditing = editingId !== null
+
+    // Reject invalid dates
+    if (!isValidEventDate(form.date)) {
+      setError(
+        'Choose a valid event date between 2020 and 2100.'
+      )
+      return
+    }
+
+    // Confirm date before saving
+    const action = isEditing ? 'Update' : 'Create'
+
+    const confirmed = window.confirm(
+      `${action} "${form.title}" with date ${form.date}?`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setSubmitting(true)
 
     try {
       const response = await fetch(
@@ -113,7 +186,8 @@ function App() {
         throw new Error(
           typeof data.detail === 'string'
             ? data.detail
-            : data.detail?.[0]?.msg || 'Failed to save event'
+            : data.detail?.[0]?.msg ||
+                'Failed to save event'
         )
       }
 
@@ -122,12 +196,14 @@ function App() {
       setForm(EMPTY_FORM)
       setEditingId(null)
 
-      // Return to first page to show newly created events
+      const targetPage = isEditing ? page : 0
+
       if (!isEditing) {
         setPage(0)
-      } else {
-        await fetchEvents()
       }
+
+      const updatedEvents = await fetchEvents(targetPage)
+      setEvents(updatedEvents)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -135,7 +211,7 @@ function App() {
     }
   }
 
-  // Load event details into the form
+  // Load an event into the edit form
   function handleEdit(event) {
     setEditingId(event.id)
 
@@ -172,11 +248,14 @@ function App() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.detail || 'Failed to delete event')
+
+        throw new Error(
+          data.detail || 'Failed to delete event'
+        )
       }
 
-      // Reload the current page after deletion
-      await fetchEvents()
+      const updatedEvents = await fetchEvents()
+      setEvents(updatedEvents)
 
       if (editingId === eventId) {
         cancelEdit()
@@ -193,7 +272,7 @@ function App() {
     setError('')
   }
 
-  // Handle filter input changes
+  // Handle filter changes
   function handleFilterChange(event) {
     const { name, value } = event.target
 
@@ -217,6 +296,64 @@ function App() {
     setPage(0)
   }
 
+  // Send a question to the AI backend
+  async function handleAskAI(event) {
+    event.preventDefault()
+
+    const trimmedQuestion = question.trim()
+
+    if (!trimmedQuestion || chatLoading) return
+
+    setChatError('')
+    setQuestion('')
+    setChatLoading(true)
+
+    setChatMessages((previous) => [
+      ...previous,
+      {
+        role: 'user',
+        content: trimmedQuestion,
+      },
+    ])
+
+    try {
+      const response = await fetch(`${API_URL}/ai/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: trimmedQuestion,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+
+        throw new Error(
+          typeof data.detail === 'string'
+            ? data.detail
+            : 'The AI assistant could not answer your question.'
+        )
+      }
+
+      const data = await response.json()
+
+      setChatMessages((previous) => [
+        ...previous,
+        {
+          role: 'assistant',
+          content: data.answer,
+          eventsUsed: data.events_used,
+        },
+      ])
+    } catch (err) {
+      setChatError(err.message)
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
   return (
     <main className="app">
       <header className="app-header">
@@ -225,6 +362,91 @@ function App() {
       </header>
 
       <section className="events-section">
+
+        {/* AI CAMPUS ASSISTANT */}
+        <section className="ai-section">
+          <div className="ai-heading">
+            <div>
+              <h2>CampusConnect AI Assistant</h2>
+              <p>
+                Ask questions about campus events using AI.
+              </p>
+            </div>
+
+            <span className="ai-status">
+              AI Powered
+            </span>
+          </div>
+
+          <div
+            className="chat-messages"
+            aria-live="polite"
+          >
+            {chatMessages.map((message, index) => (
+              <div
+                className={`chat-message ${message.role}`}
+                key={index}
+              >
+                <strong>
+                  {message.role === 'assistant'
+                    ? 'AI Assistant'
+                    : 'You'}
+                </strong>
+
+                <p>{message.content}</p>
+
+                {message.eventsUsed !== undefined && (
+                  <small>
+                    Based on {message.eventsUsed} campus
+                    event record(s)
+                  </small>
+                )}
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div className="chat-message assistant">
+                <strong>AI Assistant</strong>
+                <p>Thinking... Please wait.</p>
+              </div>
+            )}
+          </div>
+
+          {chatError && (
+            <p className="error" role="alert">
+              {chatError}
+            </p>
+          )}
+
+          <form
+            className="chat-form"
+            onSubmit={handleAskAI}
+          >
+            <input
+              type="text"
+              placeholder="Ask about campus events..."
+              value={question}
+              onChange={(event) =>
+                setQuestion(event.target.value)
+              }
+              disabled={chatLoading}
+              aria-label="Ask the AI assistant a question"
+            />
+
+            <button
+              type="submit"
+              disabled={chatLoading || !question.trim()}
+            >
+              {chatLoading ? 'Thinking...' : 'Send'}
+            </button>
+          </form>
+
+          <p className="chat-hint">
+            Example: What campus events are available?
+          </p>
+        </section>
+
+        {/* CREATE AND UPDATE EVENTS */}
         <h2>
           {editingId !== null
             ? 'Edit Campus Event'
@@ -253,8 +475,20 @@ function App() {
             name="date"
             value={form.date}
             onChange={handleChange}
+            min={MIN_EVENT_DATE}
+            max={MAX_EVENT_DATE}
+            aria-label="Event date"
             required
           />
+
+          {form.date && (
+            <p>
+              Date to save:{' '}
+              <strong>{form.date}</strong>.
+              Check the year, month and day before
+              submitting.
+            </p>
+          )}
 
           <input
             name="location"
@@ -264,7 +498,10 @@ function App() {
             required
           />
 
-          <button type="submit" disabled={submitting}>
+          <button
+            type="submit"
+            disabled={submitting}
+          >
             {submitting
               ? 'Saving...'
               : editingId !== null
@@ -283,11 +520,19 @@ function App() {
           )}
         </form>
 
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
 
+        {/* SEARCH FILTERS */}
         <h2>Search Campus Events</h2>
 
-        <form onSubmit={handleFilterSubmit} className="filter-form">
+        <form
+          onSubmit={handleFilterSubmit}
+          className="filter-form"
+        >
           <input
             name="title"
             placeholder="Search by event title"
@@ -310,7 +555,9 @@ function App() {
           />
 
           <div className="filter-actions">
-            <button type="submit">Search Events</button>
+            <button type="submit">
+              Search Events
+            </button>
 
             <button
               type="button"
@@ -321,9 +568,12 @@ function App() {
           </div>
         </form>
 
+        {/* EVENT LIST */}
         <h2>Campus Events</h2>
 
-        {loading && <p>Loading events...</p>}
+        {loading && (
+          <p>Loading events...</p>
+        )}
 
         {!loading && events.length === 0 && (
           <p>No matching events found.</p>
@@ -331,7 +581,10 @@ function App() {
 
         <div className="events-list">
           {events.map((event) => (
-            <article className="event-card" key={event.id}>
+            <article
+              className="event-card"
+              key={event.id}
+            >
               <h3>{event.title}</h3>
 
               <p>{event.description}</p>
@@ -341,7 +594,8 @@ function App() {
               </p>
 
               <p>
-                <strong>Location:</strong> {event.location}
+                <strong>Location:</strong>{' '}
+                {event.location}
               </p>
 
               <button
@@ -361,10 +615,13 @@ function App() {
           ))}
         </div>
 
+        {/* PAGINATION */}
         <div className="pagination">
           <button
             type="button"
-            onClick={() => setPage((previous) => previous - 1)}
+            onClick={() =>
+              setPage((previous) => previous - 1)
+            }
             disabled={page === 0 || loading}
           >
             Previous
@@ -374,8 +631,12 @@ function App() {
 
           <button
             type="button"
-            onClick={() => setPage((previous) => previous + 1)}
-            disabled={events.length < PAGE_SIZE || loading}
+            onClick={() =>
+              setPage((previous) => previous + 1)
+            }
+            disabled={
+              events.length < PAGE_SIZE || loading
+            }
           >
             Next
           </button>

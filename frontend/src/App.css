@@ -128,6 +128,124 @@ form button[type="button"]:hover {
   background: #475569;
 }
 
+/* AI ASSISTANT */
+.ai-section {
+  margin-bottom: 42px;
+  padding: 26px;
+  border: 1px solid #dce2f3;
+  border-radius: 16px;
+  background: #f8faff;
+}
+
+.ai-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.ai-heading h2 {
+  margin: 0 0 8px;
+  color: #312e81;
+  font-size: 23px;
+}
+
+.ai-heading p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.ai-status {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 20px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 380px;
+  min-height: 180px;
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+}
+
+.chat-message {
+  max-width: 85%;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.chat-message strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+}
+
+.chat-message p {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-message small {
+  display: block;
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.chat-message.assistant {
+  align-self: flex-start;
+  background: #eef2ff;
+  color: #27346a;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background: #5145cd;
+  color: white;
+}
+
+.chat-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 8px;
+}
+
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  background: white;
+}
+
+.chat-form button[type="submit"] {
+  flex-shrink: 0;
+  background: #5145cd;
+}
+
+.chat-form button[type="submit"]:hover {
+  background: #4035ad;
+}
+
+.chat-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
 /* SEARCH FILTERS */
 .filter-form {
   display: grid;
@@ -265,5 +383,27 @@ form button[type="button"]:hover {
 
   .pagination {
     gap: 12px;
+  }
+
+  .ai-section {
+    padding: 18px;
+  }
+
+  .ai-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .chat-message {
+    max-width: 95%;
+  }
+
+  .chat-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chat-form button {
+    width: 100%;
   }
 }

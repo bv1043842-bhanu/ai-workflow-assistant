@@ -1,4 +1,7 @@
+
 import pytest
+import httpx
+from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -394,3 +397,87 @@ def test_events_persist_between_app_instances(tmp_path):
 
     assert get_response.status_code == 200
     assert get_response.json() == {"id": 1, **event_data}
+
+
+def test_ask_ai_returns_answer_using_available_events(client, monkeypatch):
+    event_data = {
+        "title": "Spring Festival",
+        "description": "An outdoor campus festival.",
+        "date": "2026-04-12",
+        "location": "Main Quad",
+    }
+
+    client.post("/events", json=event_data)
+
+    fake_response = SimpleNamespace(
+        message=SimpleNamespace(
+            content="Spring Festival is scheduled for 2026-04-12 at Main Quad."
+        )
+    )
+
+    monkeypatch.setattr(
+        "app.main.ollama.chat",
+        lambda **kwargs: fake_response,
+    )
+
+    response = client.post(
+        "/ai/ask",
+        json={"question": "When is the Spring Festival?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == (
+        "Spring Festival is scheduled for 2026-04-12 at Main Quad."
+    )
+    assert response.json()["events_used"] == 1
+
+
+def test_ask_ai_returns_message_when_no_events_exist(client, monkeypatch):
+    def fail_if_ollama_is_called(**kwargs):
+        pytest.fail("Ollama should not be called when no events exist")
+
+    monkeypatch.setattr(
+        "app.main.ollama.chat",
+        fail_if_ollama_is_called,
+    )
+
+    response = client.post(
+        "/ai/ask",
+        json={"question": "What campus events are available?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "answer": "No campus events are currently available.",
+        "events_used": 0,
+    }
+
+
+def test_ask_ai_returns_503_when_ollama_is_unavailable(client, monkeypatch):
+    event_data = {
+        "title": "Spring Festival",
+        "description": "An outdoor campus festival.",
+        "date": "2026-04-12",
+        "location": "Main Quad",
+    }
+
+    create_response = client.post("/events", json=event_data)
+    assert create_response.status_code == 201
+
+    def raise_connection_error(**kwargs):
+        raise httpx.ConnectError("Connection refused")
+
+    monkeypatch.setattr(
+        "app.main.ollama.chat",
+        raise_connection_error,
+    )
+
+    response = client.post(
+        "/ai/ask",
+        json={"question": "What campus events are available?"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Cannot connect to Ollama. Make sure Ollama is running."
+    }
